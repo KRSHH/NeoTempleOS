@@ -86,7 +86,24 @@ function customize_image() {
 
 SOUND_FILE="/usr/share/neotempleos/sounds/calculator.flac"
 VOLUME_FOCUSED=100      # Volume when calculator is focused (%)
-VOLUME_UNFOCUSED=40     # Volume when calculator loses focus (%)
+VOLUME_UNFOCUSED=70     # Volume when calculator loses focus (%)
+
+# Create a unique marker for our paplay process
+MARKER="neotempleos_calc_$$"
+
+# Cleanup function to kill all our processes
+cleanup() {
+    # Kill all paplay processes playing our file
+    pkill -f "paplay.*calculator.flac" 2>/dev/null
+    # Also try killing by the specific sound file
+    killall paplay 2>/dev/null
+    # Restore volume
+    pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null
+    exit 0
+}
+
+# Set trap to cleanup on exit
+trap cleanup EXIT INT TERM
 
 # Start music loop in background
 if [[ -f "$SOUND_FILE" ]]; then
@@ -101,23 +118,20 @@ fi
 
 # Start focus monitor in background
 (
-    CALC_PID=$$
-    while kill -0 $CALC_PID 2>/dev/null; do
+    while true; do
         # Get the active window name
         ACTIVE_WINDOW=$(xdotool getactivewindow getwindowname 2>/dev/null || echo "")
         
         # Check if calculator is focused
         if [[ "$ACTIVE_WINDOW" == *"Calculator"* ]]; then
             # Focused - full volume
-            pactl set-sink-input-volume @DEFAULT_SINK@ ${VOLUME_FOCUSED}% 2>/dev/null || \
             pactl set-sink-volume @DEFAULT_SINK@ ${VOLUME_FOCUSED}% 2>/dev/null
         else
             # Not focused - reduce volume
-            pactl set-sink-input-volume @DEFAULT_SINK@ ${VOLUME_UNFOCUSED}% 2>/dev/null || \
             pactl set-sink-volume @DEFAULT_SINK@ ${VOLUME_UNFOCUSED}% 2>/dev/null
         fi
         
-        sleep 0.5
+        sleep 0.3
     done
 ) &
 FOCUS_PID=$!
@@ -125,17 +139,7 @@ FOCUS_PID=$!
 # Run the actual calculator (blocks until closed)
 gnome-calculator "$@"
 
-# Calculator closed - cleanup
-if [[ -n "$LOOP_PID" ]]; then
-    kill $LOOP_PID 2>/dev/null
-    pkill -P $LOOP_PID 2>/dev/null
-fi
-if [[ -n "$FOCUS_PID" ]]; then
-    kill $FOCUS_PID 2>/dev/null
-fi
-
-# Restore volume to normal
-pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null
+# Calculator closed - cleanup runs via trap
 CALC_SCRIPT
     chmod +x /usr/local/bin/neotempleos-calculator
 
