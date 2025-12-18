@@ -119,6 +119,12 @@ function run_chroot() {
         sudo ln -f $SCRIPT_DIR/config.sh chroot/root/config.sh
     fi
 
+    # Copy assets folder (sounds, images) into chroot for customization
+    if [[ -d "$SCRIPT_DIR/../assets" ]]; then
+        echo "=====> Copying assets folder into chroot..."
+        sudo cp -r $SCRIPT_DIR/../assets chroot/root/assets
+    fi
+
     # Launch into chroot environment to build install image.
     sudo chroot chroot /usr/bin/env DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-readline} /root/chroot_build.sh -
 

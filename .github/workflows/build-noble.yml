@@ -1,29 +1,77 @@
-name: build-noble
+name: Build NeoTempleOS
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main, master ]
+    tags:
+      - 'v*'
   pull_request:
-    branches: [ master ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Build
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
+      - name: Build NeoTempleOS ISO
         run: |
           cd scripts
-          sed -i -E 's/TARGET_UBUNTU_VERSION=(.*)/TARGET_UBUNTU_VERSION="noble"/g' default_config.sh
+          # Use our custom config.sh which sets TARGET_NAME and customizations
           ./build.sh -
           cd ..
-      - name: Archive artifacts
-        uses: actions/upload-artifact@v3
+          
+      - name: List build artifacts
+        run: |
+          ls -la scripts/*.iso || echo "No ISO found in scripts/"
+          ls -la scripts/image/ || echo "No image/ directory"
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ubuntu-from-scratch
+          name: NeoTempleOS-${{ github.sha }}
           path: |
-            scripts/ubuntu-from-scratch.iso
+            scripts/*.iso
             scripts/image/md5sum.txt
+          retention-days: 30
+
+      - name: Create Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: scripts/*.iso
+          name: NeoTempleOS ${{ github.ref_name }}
+          body: |
+            # 🔥 NeoTempleOS Release ${{ github.ref_name }}
+            
+            **The Divine Brainrot Experience**
+            
+            ## What's New
+            - Calculator now plays divine music
+            - Random narrator quotes (Getting Over It style)
+            - Custom brainrot sound effects
+            - Meme wallpapers and themes
+            
+            ## Installation
+            1. Download the ISO below
+            2. Create bootable USB with Rufus/balenaEtcher
+            3. Boot from USB
+            4. Select "Install NeoTempleOS"
+            5. Experience the divine brainrot
+            
+            ---
+            *"Skibidi dop dop yes yes" - God, probably*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
